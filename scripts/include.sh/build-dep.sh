@@ -6,10 +6,10 @@ build_git_ios()
     return
   fi
 
-  simarchs="i386 x86_64"
-  sdkminversion="7.0"
+  simarchs="x86_64"
+  sdkminversion="12.0"
   sdkversion="`xcodebuild -showsdks 2>/dev/null | grep iphoneos | sed 's/.*iphoneos\(.*\)/\1/'`"
-  devicearchs="armv7 armv7s arm64"
+  devicearchs="arm64"
 
   versions_path="$scriptpath/deps-versions.plist"
   version="`defaults read "$versions_path" "$name" 2>/dev/null`"
@@ -75,14 +75,14 @@ build_git_ios()
   cd "$srcdir/$name/build-mac"
   sdk="iphoneos$sdkversion"
   echo building $sdk
-  xcodebuild -project "$xcode_project" -sdk $sdk -scheme "$xcode_target" -configuration Release SYMROOT="$tmpdir/bin" OBJROOT="$tmpdir/obj" ARCHS="$devicearchs" IPHONEOS_DEPLOYMENT_TARGET="$sdkminversion" OTHER_CFLAGS="$XCTOOL_OTHERFLAGS" $XCODE_BITCODE_FLAGS
+  xcodebuild -project "$xcode_project" -sdk $sdk -scheme "$xcode_target" -configuration Release SYMROOT="$tmpdir/bin" OBJROOT="$tmpdir/obj" ARCHS="$devicearchs" IPHONEOS_DEPLOYMENT_TARGET="$sdkminversion" ALWAYS_SEARCH_USER_PATHS=NO OTHER_CFLAGS="$XCTOOL_OTHERFLAGS" $XCODE_BITCODE_FLAGS
   if test x$? != x0 ; then
     echo failed
     exit 1
   fi
   sdk="iphonesimulator$sdkversion"
   echo building $sdk
-  xcodebuild -project "$xcode_project" -sdk $sdk -scheme "$xcode_target" -configuration Release SYMROOT="$tmpdir/bin" OBJROOT="$tmpdir/obj" ARCHS="$simarchs" IPHONEOS_DEPLOYMENT_TARGET="$sdkminversion" OTHER_CFLAGS='$(inherited)'
+  xcodebuild -project "$xcode_project" -sdk $sdk -scheme "$xcode_target" -configuration Release SYMROOT="$tmpdir/bin" OBJROOT="$tmpdir/obj" ARCHS="$simarchs" IPHONEOS_DEPLOYMENT_TARGET="$sdkminversion" ALWAYS_SEARCH_USER_PATHS=NO OTHER_CFLAGS='$(inherited)'
   if test x$? != x0 ; then
     echo failed
     exit 1
@@ -90,10 +90,17 @@ build_git_ios()
   echo finished
 
   if echo $library|grep '\.framework$'>/dev/null ; then
-    cd "$tmpdir/bin/Release"
-    defaults write "$tmpdir/bin/Release/$library/Resources/Info.plist" "git-rev" "$rev"
+    cd "$tmpdir/bin"
+    xcframework_name=$(basename "$library" .framework).xcframework
+    xcodebuild -create-xcframework -framework Release-iphoneos/$library -framework Release-iphonesimulator/$library -output $xcframework_name
+    if test x$? != x0 ; then
+      echo failed
+      exit 1
+    fi
+    defaults write "$tmpdir/bin/$xcframework_name/Info.plist" "git-rev" "$rev"
     mkdir -p "$resultdir/$name"
-    zip -qry "$resultdir/$name/$name-$version.zip" "$library"
+    zip -qry "$resultdir/$name/$name-$version.zip" "$xcframework_name"
+    rm -rf "$xcframework_name"
   else
     cd "$tmpdir/bin"
     mkdir -p "$name-$version/$name"
@@ -155,7 +162,7 @@ build_git_ios()
 
 build_git_osx()
 {
-  sdk="`xcodebuild -showsdks 2>/dev/null | grep macosx | grep -v driverkit | sed 's/.*macosx\(.*\)/\1/'`"
+  sdk="`xcodebuild -showsdks 2>/dev/null | grep macosx | sed 's/.*macosx\(.*\)/\1/'`"
   archs="x86_64"
   sdkminversion="10.7"
   
@@ -289,7 +296,7 @@ build_git_osx()
 
 get_prebuilt_dep()
 {
-  url="https://d.etpan.org/mailcore2-deps"
+  url="http://d.etpan.org/mailcore2-deps"
 
   if test "x$name" = x ; then
     return
