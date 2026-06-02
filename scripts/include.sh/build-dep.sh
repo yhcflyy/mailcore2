@@ -6,9 +6,9 @@ build_git_ios()
     return
   fi
 
-  simarchs="x86_64"
+  simarchs="arm64 x86_64"
   sdkminversion="12.0"
-  sdkversion="`xcodebuild -showsdks 2>/dev/null | grep iphoneos | sed 's/.*iphoneos\(.*\)/\1/'`"
+  sdkversion="`xcodebuild -showsdks 2>/dev/null | grep iphoneos | head -n 1 | sed 's/.*iphoneos\(.*\)/\1/'`"
   devicearchs="arm64"
 
   versions_path="$scriptpath/deps-versions.plist"
@@ -162,7 +162,7 @@ build_git_ios()
 
 build_git_osx()
 {
-  sdk="`xcodebuild -showsdks 2>/dev/null | grep macosx | sed 's/.*macosx\(.*\)/\1/'`"
+  sdk="`xcodebuild -showsdks 2>/dev/null | grep macosx | head -n 1 | sed 's/.*macosx\(.*\)/\1/'`"
   archs="x86_64"
   sdkminversion="10.7"
   
