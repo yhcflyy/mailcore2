@@ -65,6 +65,24 @@ build_git_ios()
   git checkout -q $rev
   echo building $name $version - $rev
 
+  # Patch cyrus-sasl prepare script for modern Xcode (fix SDK parsing + remove unsupported archs)
+  # Also skip cyrus-sasl build entirely by pre-populating libsasl-ios from Externals
+  if test -f build-mac/dependencies/prepare-cyrus-sasl.sh ; then
+    # Make libetpan-prepare-ios no-op (autogen.sh may fail without autoconf)
+    perl -i -pe 's/^(  echo preparing)/  exit 0\n$1/' build-mac/update.sh
+    if test -d "$scriptpath/../Externals/libsasl-ios" ; then
+      echo "Using pre-built libsasl-ios from Externals"
+      rm -rf build-mac/libsasl-ios
+      cp -R "$scriptpath/../Externals/libsasl-ios" build-mac/libsasl-ios
+    else
+      # If no pre-built libsasl, patch and build
+      sed -i '' 's/| grep iphoneos | sed /| grep iphoneos | head -n 1 | sed /' build-mac/dependencies/prepare-cyrus-sasl.sh
+      sed -i '' 's/MARCHS="armv7 armv7s arm64"/MARCHS="arm64"/' build-mac/dependencies/prepare-cyrus-sasl.sh
+      sed -i '' 's/MARCHS="i386 x86_64 arm64"/MARCHS="x86_64 arm64"/' build-mac/dependencies/prepare-cyrus-sasl.sh
+      sed -i '' 's/ARCH=i386/ARCH=x86_64/' build-mac/dependencies/prepare-cyrus-sasl.sh
+    fi
+  fi
+
   BITCODE_FLAGS="-fembed-bitcode"
   if test "x$NOBITCODE" != x ; then
      BITCODE_FLAGS=""
@@ -105,6 +123,10 @@ build_git_ios()
     cd "$tmpdir/bin"
     mkdir -p "$name-$version/$name"
     mkdir -p "$name-$version/$name/lib"
+    mkdir -p "$name-$version/$name/lib/iphoneos"
+    mkdir -p "$name-$version/$name/lib/iphonesimulator"
+    cp "Release-iphoneos/$library" "$name-$version/$name/lib/iphoneos/$library"
+    cp "Release-iphonesimulator/$library" "$name-$version/$name/lib/iphonesimulator/$library"
     if test x$build_mailcore = x1 ; then
       mkdir -p "$name-$version/$name/include"
       mv Release-iphoneos/include/MailCore "$name-$version/$name/include"
