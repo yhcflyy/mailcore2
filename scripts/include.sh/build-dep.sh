@@ -81,6 +81,10 @@ build_git_ios()
       sed -i '' 's/MARCHS="i386 x86_64 arm64"/MARCHS="x86_64 arm64"/' build-mac/dependencies/prepare-cyrus-sasl.sh
       sed -i '' 's/ARCH=i386/ARCH=x86_64/' build-mac/dependencies/prepare-cyrus-sasl.sh
     fi
+
+    # Patch mailimf_quoted_string_parse infinite loop bug
+    # (when both fws_parse and qcontent_parse return PARSE_ERROR on closing quote, cur_token never advances)
+    perl -0777 -i -pe 's/(else if \(r != MAILIMF_ERROR_PARSE\) \{\s*res = r;\s*goto free_gstr;\s*\})\s*\}/$1\n    else {\n      break;\n    }\n  }/' src/low-level/imf/mailimf.c
   fi
 
   BITCODE_FLAGS="-fembed-bitcode"
