@@ -12,9 +12,12 @@ MAILCORE_ROOT="$scriptpath/.."
 OUTPUT_DIR="$MAILCORE_ROOT/bin"
 OUTPUT_XCFRAMEWORK="$OUTPUT_DIR/MailCore.xcframework"
 BUILD_SYMROOT="$MAILCORE_ROOT/.build/mailcore-ios"
-SDK_IOS_VERSION="`xcodebuild -showsdks 2>/dev/null | grep iphoneos | head -n 1 | sed 's/.*iphoneos\(.*\)/\1/'`"
+SDK_IOS_VERSION="`xcodebuild -showsdks 2>/dev/null | grep iphoneos | head -n 1 | sed -E 's/.*iphoneos(.*)/\1/'`"
 
-echo "==> [1/4] Building iOS dependencies from deps/* into Externals/ ..."
+echo "==> [1/4] Fetching deps/* sources (idempotent) ..."
+sh "$scriptpath/fetch-deps.sh"
+
+echo "==> [2/4] Building iOS dependencies from deps/* into Externals/ ..."
 build_ios_externals_from_local_source
 if test ! -f "$MAILCORE_ROOT/Externals/.built-from-local-source" ; then
   echo "ERROR: Externals were not built from local deps/"
@@ -22,7 +25,7 @@ if test ! -f "$MAILCORE_ROOT/Externals/.built-from-local-source" ; then
 fi
 echo "    Dependencies OK (see Externals/.built-from-local-source)"
 
-echo "==> [2/4] Building MailCore.framework (iphoneos) ..."
+echo "==> [3/4] Building MailCore.framework (iphoneos) ..."
 rm -rf "$BUILD_SYMROOT" "$OUTPUT_XCFRAMEWORK"
 mkdir -p "$BUILD_SYMROOT" "$OUTPUT_DIR"
 
@@ -39,7 +42,7 @@ xcodebuild -project mailcore2.xcodeproj \
   ENABLE_BITCODE=NO \
   ONLY_ACTIVE_ARCH=NO
 
-echo "==> [3/4] Building MailCore.framework (iphonesimulator) ..."
+echo "==> [4/4] Building MailCore.framework (iphonesimulator) ..."
 xcodebuild -project mailcore2.xcodeproj \
   -scheme "mailcore ios" \
   -configuration Release \
@@ -66,7 +69,7 @@ if test ! -d "$_SIM_FW" ; then
   exit 1
 fi
 
-echo "==> [4/4] Creating MailCore.xcframework ..."
+echo "==> [5/4] Creating MailCore.xcframework ..."
 xcodebuild -create-xcframework \
   -framework "$_DEVICE_FW" \
   -framework "$_SIM_FW" \

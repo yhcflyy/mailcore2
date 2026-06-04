@@ -194,7 +194,7 @@ build_git_ios()
 
   simarchs="arm64 x86_64"
   sdkminversion="12.0"
-  sdkversion="`xcodebuild -showsdks 2>/dev/null | grep iphoneos | head -n 1 | sed 's/.*iphoneos\(.*\)/\1/'`"
+  sdkversion="`xcodebuild -showsdks 2>/dev/null | grep iphoneos | head -n 1 | sed -E 's/.*iphoneos(.*)/\1/'`"
   devicearchs="arm64"
 
   versions_path="$scriptpath/deps-versions.plist"
