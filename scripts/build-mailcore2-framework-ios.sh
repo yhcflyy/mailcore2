@@ -15,18 +15,12 @@ BUILD_SYMROOT="$MAILCORE_ROOT/.build/mailcore-ios"
 SDK_IOS_VERSION="`xcodebuild -showsdks 2>/dev/null | grep iphoneos | head -n 1 | sed 's/.*iphoneos\(.*\)/\1/'`"
 
 echo "==> [1/4] Building iOS dependencies from deps/* into Externals/ ..."
-build_for_external=1 "$scriptpath/build-ctemplate-ios.sh"
-build_for_external=1 "$scriptpath/build-libetpan-ios.sh"
-build_for_external=1 "$scriptpath/build-tidy-ios.sh"
-
-for _dep in ctemplate-ios libetpan-ios tidy-html5-ios libsasl-ios ; do
-  if test ! -d "$MAILCORE_ROOT/Externals/$_dep" ; then
-    echo "ERROR: Externals/$_dep is missing after dependency build"
-    exit 1
-  fi
-done
-fix_tidy_include_layout "$MAILCORE_ROOT/Externals/tidy-html5-ios" "$MAILCORE_ROOT/deps/tidy-html5"
-echo "    Dependencies OK"
+build_ios_externals_from_local_source
+if test ! -f "$MAILCORE_ROOT/Externals/.built-from-local-source" ; then
+  echo "ERROR: Externals were not built from local deps/"
+  exit 1
+fi
+echo "    Dependencies OK (see Externals/.built-from-local-source)"
 
 echo "==> [2/4] Building MailCore.framework (iphoneos) ..."
 rm -rf "$BUILD_SYMROOT" "$OUTPUT_XCFRAMEWORK"

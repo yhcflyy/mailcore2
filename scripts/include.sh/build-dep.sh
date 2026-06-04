@@ -1,5 +1,12 @@
 #!/bin/sh
 
+if test "x$scriptpath" = x ; then
+  case "$0" in
+    */include.sh/*) scriptpath="`cd "$(dirname "$0")/.." && pwd`" ;;
+    *) scriptpath="`cd "$(dirname "$0")" && pwd`" ;;
+  esac
+fi
+
 # Map packaged iOS dependency name -> local source tree under deps/
 local_dep_src_dir()
 {
@@ -68,6 +75,66 @@ build_libsasl_from_libetpan()
     rm -rf "$scriptpath/../Externals/libsasl-ios"
     cp -R "$_root/build-mac/libsasl-ios" "$scriptpath/../Externals/libsasl-ios"
   fi
+}
+
+stamp_externals_built_from_source()
+{
+  _stamp="$scriptpath/../Externals/.built-from-local-source"
+  mkdir -p "$scriptpath/../Externals"
+  {
+    echo "source=deps"
+    echo "built_at=`date -u +%Y-%m-%dT%H:%M:%SZ`"
+    for _pair in ctemplate:deps/ctemplate libetpan:deps/libetpan tidy-html5:deps/tidy-html5 ; do
+      _pkg="${_pair%%:*}"
+      _dir="$scriptpath/../${_pair#*:}"
+      if test -d "$_dir/.git" ; then
+        echo "$_pkg=`git -C "$_dir" rev-parse HEAD 2>/dev/null || echo unknown`"
+      fi
+    done
+  } > "$_stamp"
+}
+
+# Build all iOS Externals from deps/* — never download etpan prebuilt zips.
+build_ios_externals_from_local_source()
+{
+  echo "==> Building Externals from local deps/* (not prebuilt) ..."
+  MAILCORE_NO_PREBUILT_DEPS=1
+  export MAILCORE_NO_PREBUILT_DEPS
+
+  for _dep in ctemplate-ios libetpan-ios tidy-html5-ios libsasl-ios ; do
+    rm -rf "$scriptpath/../Externals/$_dep"
+  done
+  rm -f "$scriptpath/../Externals/.built-from-local-source"
+  rm -f "$scriptpath/../scripts/installed-deps-versions.plist"
+
+  _libetpan="$scriptpath/../deps/libetpan"
+  if test ! -d "$_libetpan/build-mac" ; then
+    echo "ERROR: missing $_libetpan"
+    exit 1
+  fi
+  build_libsasl_from_libetpan "$_libetpan"
+
+  for _dep in ctemplate-ios libetpan-ios tidy-html5-ios ; do
+    _src="$(local_dep_src_dir "$_dep")"
+    if test ! -d "$_src/build-mac" ; then
+      echo "ERROR: missing local source for $_dep at $_src"
+      exit 1
+    fi
+    echo "--- Building $_dep from $_src ---"
+    build_for_external=1 sh "$scriptpath/build-$_dep.sh"
+    if test x$? != x0 ; then
+      echo "Failed to build $_dep"
+      exit 1
+    fi
+    if test ! -d "$scriptpath/../Externals/$_dep" ; then
+      echo "ERROR: Externals/$_dep missing after build"
+      exit 1
+    fi
+  done
+
+  fix_tidy_include_layout "$scriptpath/../Externals/tidy-html5-ios" "$scriptpath/../deps/tidy-html5"
+  stamp_externals_built_from_source
+  echo "==> Externals ready (built from deps/, see Externals/.built-from-local-source)"
 }
 
 build_embedded_ios_deps_from_source()
@@ -159,54 +226,69 @@ build_git_ios()
 
   pushd . >/dev/null
 
-  _local_main="$(local_dep_src_dir "$name")"
-  if test -z "$_local_main" || test ! -d "$_local_main/build-mac" ; then
-    if test "x$url" != x ; then
-      mkdir -p "$builddir/downloads"
-      pushd "$builddir/downloads" >/dev/null
-      if test -d "$name" ; then
-        cd "$name"
-        git checkout master
-        git pull --rebase
-      else
-        git clone $url "$name"
-        cd "$name"
-      fi
-      popd >/dev/null
-    fi
-  fi
-
-  if test "x$embedded_deps" != "x" ; then
-    build_embedded_ios_deps_from_source
-  fi
-
   dep_root=""
-  _local_src="$(local_dep_src_dir "$name")"
-  if test -n "$_local_src" && test -d "$_local_src/build-mac" ; then
+  if test x$build_for_external = x1 ; then
+    _local_src="$(local_dep_src_dir "$name")"
+    if test ! -d "$_local_src/build-mac" ; then
+      echo "ERROR: build_for_external requires local source at $_local_src"
+      exit 1
+    fi
     dep_root="$_local_src"
     echo "Using local source tree for $name: $dep_root"
     patch_dep_sources "$dep_root"
+    if test "$name" = "libetpan-ios" ; then
+      build_libsasl_from_libetpan "$dep_root"
+    fi
   else
-    cp -R "$builddir/downloads/$name" "$srcdir/$name"
-    dep_root="$srcdir/$name"
-    cd "$dep_root"
-    if test "x$branch" != x ; then
-      if ! git checkout -b "$branch" "origin/$branch" ; then
-        git checkout "$branch"
+    _local_main="$(local_dep_src_dir "$name")"
+    if test -z "$_local_main" || test ! -d "$_local_main/build-mac" ; then
+      if test "x$url" != x ; then
+        mkdir -p "$builddir/downloads"
+        pushd "$builddir/downloads" >/dev/null
+        if test -d "$name" ; then
+          cd "$name"
+          git checkout master
+          git pull --rebase
+        else
+          git clone $url "$name"
+          cd "$name"
+        fi
+        popd >/dev/null
       fi
     fi
-    git checkout -q $rev
-    patch_dep_sources "$dep_root"
+
+    if test "x$embedded_deps" != "x" ; then
+      build_embedded_ios_deps_from_source
+    fi
+
+    _local_src="$(local_dep_src_dir "$name")"
+    if test -n "$_local_src" && test -d "$_local_src/build-mac" ; then
+      dep_root="$_local_src"
+      echo "Using local source tree for $name: $dep_root"
+      patch_dep_sources "$dep_root"
+    else
+      cp -R "$builddir/downloads/$name" "$srcdir/$name"
+      dep_root="$srcdir/$name"
+      cd "$dep_root"
+      if test "x$branch" != x ; then
+        if ! git checkout -b "$branch" "origin/$branch" ; then
+          git checkout "$branch"
+        fi
+      fi
+      git checkout -q $rev
+      patch_dep_sources "$dep_root"
+    fi
+    echo building $name $version - $rev
+
+    if test "$name" = "libetpan-ios" ; then
+      build_libsasl_from_libetpan "$dep_root"
+    fi
+
+    if test "x$embedded_deps" != "x" ; then
+      copy_embedded_deps_to_mailcore
+    fi
   fi
   echo building $name $version - $rev
-
-  if test "$name" = "libetpan-ios" ; then
-    build_libsasl_from_libetpan "$dep_root"
-  fi
-
-  if test "x$embedded_deps" != "x" ; then
-    copy_embedded_deps_to_mailcore
-  fi
 
   BITCODE_FLAGS="-fembed-bitcode"
   if test "x$NOBITCODE" != x ; then
@@ -306,6 +388,7 @@ build_git_ios()
         fix_tidy_include_layout "$scriptpath/../Externals/$name" "$dep_root"
       fi
       rm -f "$scriptpath/../Externals/$name/git-rev"
+      stamp_externals_built_from_source
     else
       mkdir -p "$resultdir/$name"
       zip -qry "$resultdir/$name/$name-$version.zip" "$name-$version"
@@ -461,6 +544,11 @@ build_git_osx()
 
 get_prebuilt_dep()
 {
+  if test "x$MAILCORE_NO_PREBUILT_DEPS" = x1 ; then
+    echo "$name: skipping prebuilt download (MAILCORE_NO_PREBUILT_DEPS=1)"
+    return 0
+  fi
+
   url="http://d.etpan.org/mailcore2-deps"
 
   if test "x$name" = x ; then

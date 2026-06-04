@@ -18,25 +18,13 @@ LOG_PATH="$LOGS_DIR/$LOG_FILE"
 
 rm -rf "$BUILD_DIR/$FRAMEWORK_NAME"
 
-# Build iOS dependencies from source instead of using precompiled ones
-echo "Building ctemplate-ios from source..." | tee -a "$LOG_PATH"
-build_for_external=1 "$MAILCORE_DIR/scripts/build-ctemplate-ios.sh" 2>&1 | tee -a "$LOG_PATH"
+# Build iOS dependencies from deps/* (never etpan prebuilt zips)
+echo "Building iOS Externals from deps/* ..." | tee -a "$LOG_PATH"
+scriptpath="$MAILCORE_DIR/scripts"
+. "$scriptpath/include.sh/build-dep.sh"
+build_ios_externals_from_local_source 2>&1 | tee -a "$LOG_PATH"
 if [ $? -ne 0 ]; then
-    echo "Failed to build ctemplate-ios" | tee -a "$LOG_PATH"
-    exit 1
-fi
-
-echo "Building libetpan-ios from source..." | tee -a "$LOG_PATH"
-build_for_external=1 "$MAILCORE_DIR/scripts/build-libetpan-ios.sh" 2>&1 | tee -a "$LOG_PATH"
-if [ $? -ne 0 ]; then
-    echo "Failed to build libetpan-ios" | tee -a "$LOG_PATH"
-    exit 1
-fi
-
-echo "Building tidy-html5-ios from source..." | tee -a "$LOG_PATH"
-build_for_external=1 "$MAILCORE_DIR/scripts/build-tidy-ios.sh" 2>&1 | tee -a "$LOG_PATH"
-if [ $? -ne 0 ]; then
-    echo "Failed to build tidy-html5-ios" | tee -a "$LOG_PATH"
+    echo "Failed to build iOS dependencies from source" | tee -a "$LOG_PATH"
     exit 1
 fi
 
