@@ -9,7 +9,8 @@ popd > /dev/null
 . "$scriptpath/include.sh/build-dep.sh"
 
 MAILCORE_ROOT="$scriptpath/.."
-OUTPUT_XCFRAMEWORK="$MAILCORE_ROOT/MailCore.xcframework"
+OUTPUT_DIR="$MAILCORE_ROOT/bin"
+OUTPUT_XCFRAMEWORK="$OUTPUT_DIR/MailCore.xcframework"
 BUILD_SYMROOT="$MAILCORE_ROOT/.build/mailcore-ios"
 SDK_IOS_VERSION="`xcodebuild -showsdks 2>/dev/null | grep iphoneos | head -n 1 | sed 's/.*iphoneos\(.*\)/\1/'`"
 
@@ -29,7 +30,7 @@ echo "    Dependencies OK"
 
 echo "==> [2/4] Building MailCore.framework (iphoneos) ..."
 rm -rf "$BUILD_SYMROOT" "$OUTPUT_XCFRAMEWORK"
-mkdir -p "$BUILD_SYMROOT"
+mkdir -p "$BUILD_SYMROOT" "$OUTPUT_DIR"
 
 cd "$MAILCORE_ROOT/build-mac"
 xcodebuild -project mailcore2.xcodeproj \

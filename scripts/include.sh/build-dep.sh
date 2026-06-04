@@ -247,7 +247,7 @@ build_git_ios()
     if test "x$xcframework_output" != x ; then
       _xc_output="$xcframework_output"
     elif test "$name" = "mailcore2-framework-ios" ; then
-      _xc_output="$scriptpath/../MailCore.xcframework"
+      _xc_output="$scriptpath/../bin/MailCore.xcframework"
     fi
     if test -n "$_xc_output" ; then
       rm -rf "$_xc_output"
