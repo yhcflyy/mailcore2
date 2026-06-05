@@ -26,7 +26,12 @@ IMAPFolderStatusOperation::~IMAPFolderStatusOperation()
 
 void IMAPFolderStatusOperation::main()
 {
-    ErrorCode error;
+    ErrorCode error = ErrorNone;
+    
+    if (folder() == NULL) {
+        setError(ErrorNonExistantFolder);
+        return;
+    }
     
     session()->session()->loginIfNeeded(&error);
     if (error != ErrorNone) {
@@ -34,14 +39,18 @@ void IMAPFolderStatusOperation::main()
         return;
     }
     
-    IMAPFolderStatus *status = session()->session()->folderStatus(folder(), &error);
+    IMAPFolderStatus * status = session()->session()->folderStatus(folder(), &error);
     if (error != ErrorNone) {
         setError(error);
         return;
     }
+    if (status == NULL) {
+        setError(ErrorParse);
+        return;
+    }
     
     MC_SAFE_REPLACE_RETAIN(IMAPFolderStatus, mStatus, status);
-    setError(error);
+    setError(ErrorNone);
 }
 
 IMAPFolderStatus * IMAPFolderStatusOperation::status()

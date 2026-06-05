@@ -1222,6 +1222,14 @@ IMAPFolderStatus * IMAPSession::folderStatus(String * folder, ErrorCode * pError
     MCLog("status");
     MCAssert(mState == STATE_LOGGEDIN || mState == STATE_SELECTED);
 
+    IMAPFolderStatus * fs = new IMAPFolderStatus();
+    fs->autorelease();
+
+    if (folder == NULL) {
+        * pError = ErrorNonExistantFolder;
+        return fs;
+    }
+
     struct mailimap_mailbox_data_status * status;
 
     struct mailimap_status_att_list * status_att_list;
@@ -1237,10 +1245,6 @@ IMAPFolderStatus * IMAPSession::folderStatus(String * folder, ErrorCode * pError
     }
     
     r = mailimap_status(mImap, MCUTF8(folder), status_att_list, &status);
-    
-    IMAPFolderStatus * fs;
-    fs = new IMAPFolderStatus();
-    fs->autorelease();
     
     MCLog("status error : %i", r);
     if (r == MAILIMAP_ERROR_STREAM) {
@@ -1264,47 +1268,54 @@ IMAPFolderStatus * IMAPSession::folderStatus(String * folder, ErrorCode * pError
     
     clistiter * cur;
     
-    
-    if (status != NULL) {
-        
-            struct mailimap_status_info * status_info;
-            for(cur = clist_begin(status->st_info_list) ; cur != NULL ;
-                cur = clist_next(cur)) {                
-                
-                status_info = (struct mailimap_status_info *) clist_content(cur);
-                                
-                switch (status_info->st_att) {
-                    case MAILIMAP_STATUS_ATT_UNSEEN:
-                        fs->setUnseenCount(status_info->st_value);
-                        break;
-                    case MAILIMAP_STATUS_ATT_MESSAGES:
-                        fs->setMessageCount(status_info->st_value);
-                        break;
-                    case MAILIMAP_STATUS_ATT_RECENT:
-                        fs->setRecentCount(status_info->st_value);
-                        break;
-                    case MAILIMAP_STATUS_ATT_UIDNEXT:
-                        fs->setUidNext(status_info->st_value);
-                        break;                        
-                    case MAILIMAP_STATUS_ATT_UIDVALIDITY:
-                        fs->setUidValidity(status_info->st_value);
-                        break;
-                    case MAILIMAP_STATUS_ATT_EXTENSION: {
-                        struct mailimap_extension_data * ext_data = status_info->st_ext_data;
-                        if (ext_data->ext_extension == &mailimap_extension_condstore) {
-                            struct mailimap_condstore_status_info * status_info = (struct mailimap_condstore_status_info *) ext_data->ext_data;
-                            fs->setHighestModSeqValue(status_info->cs_highestmodseq_value);
-                        }
-                        break;
+    if (status != NULL && status->st_info_list != NULL) {
+        struct mailimap_status_info * status_info;
+        for(cur = clist_begin(status->st_info_list) ; cur != NULL ;
+            cur = clist_next(cur)) {
+            
+            status_info = (struct mailimap_status_info *) clist_content(cur);
+            if (status_info == NULL) {
+                continue;
+            }
+            
+            switch (status_info->st_att) {
+                case MAILIMAP_STATUS_ATT_UNSEEN:
+                    fs->setUnseenCount(status_info->st_value);
+                    break;
+                case MAILIMAP_STATUS_ATT_MESSAGES:
+                    fs->setMessageCount(status_info->st_value);
+                    break;
+                case MAILIMAP_STATUS_ATT_RECENT:
+                    fs->setRecentCount(status_info->st_value);
+                    break;
+                case MAILIMAP_STATUS_ATT_UIDNEXT:
+                    fs->setUidNext(status_info->st_value);
+                    break;
+                case MAILIMAP_STATUS_ATT_UIDVALIDITY:
+                    fs->setUidValidity(status_info->st_value);
+                    break;
+                case MAILIMAP_STATUS_ATT_HIGHESTMODSEQ:
+                    fs->setHighestModSeqValue(status_info->st_value);
+                    break;
+                case MAILIMAP_STATUS_ATT_EXTENSION: {
+                    struct mailimap_extension_data * ext_data = status_info->st_ext_data;
+                    if (ext_data != NULL && ext_data->ext_extension == &mailimap_extension_condstore
+                        && ext_data->ext_data != NULL) {
+                        struct mailimap_condstore_status_info * condstore_info =
+                            (struct mailimap_condstore_status_info *) ext_data->ext_data;
+                        fs->setHighestModSeqValue(condstore_info->cs_highestmodseq_value);
                     }
+                    break;
                 }
-            }            
+            }
+        }
 
         mailimap_mailbox_data_status_free(status);
     }
 
     mailimap_status_att_list_free(status_att_list);
 
+    * pError = ErrorNone;
     return fs;
 }
 
